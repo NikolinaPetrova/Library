@@ -1,0 +1,62 @@
+name: Build Test and Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build_test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+  
+    - name: Use Node.js 22
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        
+    - name: Install npm dependencies
+      run: npm install
+
+    - name: Manually change the config file
+      run: echo "export const settings = { host:'http://localhost:3030'};" > src/config.js
+      
+    - name: Start BE
+      run: npm run start-be &
+      
+    - name: Start FE
+      run: npm run start-fe &
+
+    - name: Install Playwright Browsers
+      run: npx playwright install
+
+    - name: Start tests
+      run: npm test
+
+  deploy-be:
+    needs: build_test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to production
+        uses: JorgeLNJunior/render-deploy@v1.5.0
+        with:
+          service_id: ${{ secrets.SERVICE_BE_ID }}
+          api_key: ${{ secrets.RENDER_TOKEN }}
+          wait_deploy: true
+
+  deploy-fe:
+    needs: deploy-be
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to production
+        uses: JorgeLNJunior/render-deploy@v1.5.0
+        with:
+          service_id: ${{ secrets.SERVICE_FE_ID }}
+          api_key: ${{ secrets.RENDER_TOKEN }}
+          wait_deploy: true
